@@ -1,8 +1,14 @@
 import { API_BASE_URL } from 'constants/env';
 import { NuveiSessionResponse, OnboardingInitPayload, Plan, RegisterPayload, RegisterResult } from 'types/tenant';
 
+let activeBaseUrl = API_BASE_URL;
+
+export const setApiBaseUrl = (url: string) => {
+    activeBaseUrl = url;
+};
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-    const res = await fetch(`${API_BASE_URL}${path}`, {
+    const res = await fetch(`${activeBaseUrl}${path}`, {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         ...options,
