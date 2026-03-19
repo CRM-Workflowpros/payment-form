@@ -1,5 +1,5 @@
 import { API_BASE_URL } from 'constants/env';
-import { NuveiSessionResponse, Plan, RegisterPayload, RegisterResult } from 'types/tenant';
+import { NuveiSessionResponse, OnboardingInitPayload, Plan, RegisterPayload, RegisterResult } from 'types/tenant';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const res = await fetch(`${API_BASE_URL}${path}`, {
@@ -16,14 +16,19 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     return res.json() as Promise<T>;
 }
 
+interface OnboardingInitResponse {
+    meta: { success: boolean };
+    response: NuveiSessionResponse;
+}
+
 export const getPlans = (): Promise<Plan[]> =>
     request<Plan[]>('/plans');
 
-export const getNuveiSession = (planId: number, amount: number, userTokenId: string): Promise<NuveiSessionResponse> =>
-    request<NuveiSessionResponse>('/nuvei/session', {
+export const initOnboarding = (payload: OnboardingInitPayload): Promise<NuveiSessionResponse> =>
+    request<OnboardingInitResponse>('/subscription/onboarding/init', {
         method: 'POST',
-        body: JSON.stringify({ planId, amount, userTokenId }),
-    });
+        body: JSON.stringify(payload),
+    }).then(res => res.response);
 
 export const registerTenant = (payload: RegisterPayload): Promise<RegisterResult> =>
     request<RegisterResult>('/tenants/register', {

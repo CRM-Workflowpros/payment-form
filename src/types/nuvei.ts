@@ -10,6 +10,7 @@ export interface NuveiConfig {
     env: NuveiEnv;
     merchantId: string;
     merchantSiteId: string;
+    sessionToken: string;
     userTokenId?: string;
 }
 
@@ -62,7 +63,9 @@ export interface NuveiCreatePaymentParams {
     cardHolderName: string;
     paymentOption: NuveiCard;
     billingAddress: { email: string; country: string };
-    userTokenId?: string;
+    userTokenId: string;
+    currency?: string;
+    amount?: string;
 }
 
 export enum NuveiPaymentResult {

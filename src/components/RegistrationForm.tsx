@@ -1,35 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
-import { PlanCard } from 'components/PlanCard';
 import { useNuveiCard } from 'hooks/useNuveiCard';
-import { getNuveiSession, registerTenant } from 'services/api';
-import { NuveiSessionResponse, Plan, RegisterResult } from 'types/tenant';
+import { initOnboarding } from 'services/api';
+import { NuveiSessionResponse } from 'types/tenant';
 import { NuveiPaymentResponse } from 'types/nuvei';
 
 import styles from './RegistrationForm.module.css';
 
 interface RegistrationFormProps {
-    plans: Plan[];
-    onSuccess: (result: RegisterResult, nuveiResponse: NuveiPaymentResponse) => void;
+    onSuccess: (nuveiResponse: NuveiPaymentResponse) => void;
 }
 
 interface FormState {
-    companyName: string;
-    firstName: string;
-    lastName: string;
+    name: string;
+    phone: string;
     email: string;
-    password: string;
 }
 
-export const RegistrationForm = ({ plans, onSuccess }: RegistrationFormProps) => {
+export const RegistrationForm = ({ onSuccess }: RegistrationFormProps) => {
     const [form, setForm] = useState<FormState>({
-        companyName: '',
-        firstName: '',
-        lastName: '',
+        name: '',
+        phone: '',
         email: '',
-        password: '',
     });
-    const [selectedPlan, setSelectedPlan] = useState<Plan | null>(plans[0] ?? null);
     const [session, setSession] = useState<NuveiSessionResponse | null>(null);
     const [isSessionLoading, setIsSessionLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -38,50 +31,40 @@ export const RegistrationForm = ({ plans, onSuccess }: RegistrationFormProps) =>
     const cardFieldRef = useRef<HTMLDivElement>(null);
     const { isCardReady, isInitializing, initError, createPayment } = useNuveiCard({ session, cardFieldRef });
 
-    // Generate a stable userTokenId for this registration attempt
-    const userTokenIdRef = useRef<string>(crypto.randomUUID());
-
-    useEffect(() => {
-        if (!selectedPlan) return;
-
-        setSession(null);
-        setIsSessionLoading(true);
-        setError(null);
-
-        getNuveiSession(selectedPlan.id, selectedPlan.price, userTokenIdRef.current)
-            .then(setSession)
-            .catch(err => setError(err instanceof Error ? err.message : 'Failed to initialize payment'))
-            .finally(() => setIsSessionLoading(false));
-    }, [selectedPlan]);
-
     const setField = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) =>
         setForm(prev => ({ ...prev, [field]: e.target.value }));
 
+    const handleContinue = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!form.name || !form.phone || !form.email) return;
+
+        setIsSessionLoading(true);
+        setError(null);
+
+        try {
+            const s = await initOnboarding({ name: form.name, phone: form.phone, email: form.email });
+            setSession(s);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to initialize payment');
+        } finally {
+            setIsSessionLoading(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedPlan || !session || !isCardReady) return;
+        if (!session || !isCardReady) return;
 
         setIsSubmitting(true);
         setError(null);
 
         try {
-            const cardHolderName = `${form.firstName} ${form.lastName}`.trim();
-            const nuveiResponse = await createPayment(cardHolderName, form.email);
+            const nuveiResponse = await createPayment(form.name, form.email);
 
-            const result = await registerTenant({
-                companyName: form.companyName,
-                firstName: form.firstName,
-                lastName: form.lastName,
-                email: form.email,
-                password: form.password,
-                planId: selectedPlan.id,
-                userPaymentOptionId: nuveiResponse.userPaymentOptionId!,
-                userTokenId: userTokenIdRef.current,
-                ...(nuveiResponse.transactionId ? { transactionId: nuveiResponse.transactionId } : {}),
-                ...(nuveiResponse.authCode ? { authCode: nuveiResponse.authCode } : {}),
-            });
+            // TODO: register tenant after payment
+            // const result = await registerTenant({ ... });
 
-            onSuccess(result, nuveiResponse);
+            onSuccess(nuveiResponse);
         } catch (err) {
             const nuveiErr = err as { errorDescription?: string };
             setError(nuveiErr.errorDescription ?? (err instanceof Error ? err.message : 'Something went wrong'));
@@ -90,129 +73,89 @@ export const RegistrationForm = ({ plans, onSuccess }: RegistrationFormProps) =>
         }
     };
 
-    const isFormDisabled = isSubmitting || !isCardReady;
+    const isFormDisabled = isSubmitting || isSessionLoading;
+
+    if (!session) {
+        return (
+            <form onSubmit={handleContinue} className={styles.form} noValidate>
+                <fieldset className={styles.fieldset}>
+                    <legend className={styles.legend}>Subscription details</legend>
+                    <div className={styles.field}>
+                        <label htmlFor="name">Full name</label>
+                        <input
+                            id="name"
+                            value={form.name}
+                            onChange={setField('name')}
+                            placeholder="John Smith"
+                            required
+                            disabled={isFormDisabled}
+                        />
+                    </div>
+                    <div className={styles.field}>
+                        <label htmlFor="phone">Phone</label>
+                        <input
+                            id="phone"
+                            type="tel"
+                            value={form.phone}
+                            onChange={setField('phone')}
+                            placeholder="+1 555 000 0000"
+                            required
+                            disabled={isFormDisabled}
+                        />
+                    </div>
+                    <div className={styles.field}>
+                        <label htmlFor="email">Email</label>
+                        <input
+                            id="email"
+                            type="email"
+                            value={form.email}
+                            onChange={setField('email')}
+                            placeholder="john@acme.com"
+                            required
+                            disabled={isFormDisabled}
+                        />
+                    </div>
+
+                </fieldset>
+
+                {error && <div className={styles.error}>{error}</div>}
+
+                <button type="submit" className={styles.submitBtn} disabled={isFormDisabled}>
+                    {isSessionLoading ? 'Loading...' : 'Continue to Payment'}
+                </button>
+            </form>
+        );
+    }
 
     return (
         <form onSubmit={handleSubmit} className={styles.form} noValidate>
-
-            {/* Company & Admin */}
-            <fieldset className={styles.fieldset}>
-                <legend className={styles.legend}>Company details</legend>
-                <div className={styles.field}>
-                    <label htmlFor="companyName">Company name</label>
-                    <input
-                        id="companyName"
-                        value={form.companyName}
-                        onChange={setField('companyName')}
-                        placeholder="Acme Inc."
-                        required
-                        disabled={isFormDisabled}
-                    />
-                </div>
-                <div className={styles.row}>
-                    <div className={styles.field}>
-                        <label htmlFor="firstName">First name</label>
-                        <input
-                            id="firstName"
-                            value={form.firstName}
-                            onChange={setField('firstName')}
-                            placeholder="John"
-                            required
-                            disabled={isFormDisabled}
-                        />
-                    </div>
-                    <div className={styles.field}>
-                        <label htmlFor="lastName">Last name</label>
-                        <input
-                            id="lastName"
-                            value={form.lastName}
-                            onChange={setField('lastName')}
-                            placeholder="Smith"
-                            required
-                            disabled={isFormDisabled}
-                        />
-                    </div>
-                </div>
-                <div className={styles.field}>
-                    <label htmlFor="email">Work email</label>
-                    <input
-                        id="email"
-                        type="email"
-                        value={form.email}
-                        onChange={setField('email')}
-                        placeholder="john@acme.com"
-                        required
-                        disabled={isFormDisabled}
-                    />
-                </div>
-                <div className={styles.field}>
-                    <label htmlFor="password">Password</label>
-                    <input
-                        id="password"
-                        type="password"
-                        value={form.password}
-                        onChange={setField('password')}
-                        placeholder="At least 8 characters"
-                        required
-                        minLength={8}
-                        disabled={isFormDisabled}
-                    />
-                </div>
-            </fieldset>
-
-            {/* Plan selection */}
-            <fieldset className={styles.fieldset}>
-                <legend className={styles.legend}>Choose a plan</legend>
-                <div className={styles.plans}>
-                    {plans.map(plan => (
-                        <PlanCard
-                            key={plan.id}
-                            plan={plan}
-                            selected={selectedPlan?.id === plan.id}
-                            onSelect={setSelectedPlan}
-                        />
-                    ))}
-                </div>
-            </fieldset>
-
-            {/* Card */}
             <fieldset className={styles.fieldset}>
                 <legend className={styles.legend}>Payment</legend>
 
-                {(isSessionLoading || isInitializing) && (
+                {(isInitializing) && (
                     <div className={styles.cardLoader}>
                         <div className={styles.spinner} />
                         <span>Loading payment form...</span>
                     </div>
                 )}
 
-                {(initError || (!isSessionLoading && !session && error)) && (
-                    <p className={styles.fieldError}>{initError ?? error}</p>
-                )}
+                {initError && <p className={styles.fieldError}>{initError}</p>}
 
                 <div
                     ref={cardFieldRef}
                     className={styles.cardField}
                     style={{ display: isCardReady ? 'block' : 'none' }}
                 />
-
-                {isCardReady && (
-                    <p className={styles.cardHint}>
-                        Your card will be charged ${selectedPlan?.price}/{selectedPlan?.period === 'ONE_MONTH' ? 'month' : 'year'}
-                    </p>
-                )}
             </fieldset>
 
-            {error && !initError && (
-                <div className={styles.error}>{error}</div>
-            )}
+            {error && <div className={styles.error}>{error}</div>}
 
             <button
                 type="submit"
                 className={styles.submitBtn}
-                disabled={isFormDisabled}
+                disabled={isSubmitting || !isCardReady}
             >
-                {isSubmitting ? 'Creating account...' : 'Create account & Subscribe'}
+                {isSubmitting ? 'Processing...' : 'Subscribe'}
             </button>
         </form>
     );

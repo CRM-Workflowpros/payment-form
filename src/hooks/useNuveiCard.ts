@@ -46,7 +46,8 @@ export const useNuveiCard = ({ session, cardFieldRef }: UseNuveiCardProps): UseN
                 env: session.env,
                 merchantId: session.merchantId,
                 merchantSiteId: session.merchantSiteId,
-                ...(session.userTokenId ? { userTokenId: session.userTokenId } : {}),
+                sessionToken: session.sessionToken,
+                userTokenId: session.userTokenId,
             });
 
             nuveiInstanceRef.current = sfc;
@@ -87,7 +88,7 @@ export const useNuveiCard = ({ session, cardFieldRef }: UseNuveiCardProps): UseN
                         cardHolderName,
                         paymentOption: cardRef.current!,
                         billingAddress: { email, country: 'CA' },
-                        ...(session.userTokenId ? { userTokenId: session.userTokenId } : {}),
+                        userTokenId: session.userTokenId,
                     },
                     response => {
                         const ok = response.result === NuveiPaymentResult.APPROVED || response.result === NuveiPaymentResult.PENDING;

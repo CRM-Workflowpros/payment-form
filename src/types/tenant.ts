@@ -3,8 +3,15 @@ export interface Plan {
     name: string;
     description: string;
     price: number;
+    currency: string;
     period: 'ONE_MONTH' | 'ONE_YEAR';
     nuveiPlanId: string;
+}
+
+export interface OnboardingInitPayload {
+    name: string;
+    phone: string;
+    email: string;
 }
 
 export interface NuveiSessionResponse {
@@ -13,18 +20,17 @@ export interface NuveiSessionResponse {
     merchantId: string;
     merchantSiteId: string;
     env: 'int' | 'prod';
-    userTokenId?: string;
+    userTokenId: string;
 }
 
 export interface RegisterPayload {
-    companyName: string;
-    firstName: string;
-    lastName: string;
+    name: string;
+    phone: string;
     email: string;
     password: string;
     planId: number;
     userPaymentOptionId: string;
-    userTokenId?: string;
+    userTokenId: string;
     transactionId?: string;
     authCode?: string;
 }
