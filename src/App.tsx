@@ -13,7 +13,10 @@ const ENVIRONMENTS = [1, 2, 3, 4, 5].map(n => ({
 
 const App = () => {
     const [nuveiResponse, setNuveiResponse] = useState<NuveiPaymentResponse | null>(null);
-    const [envUrl, setEnvUrl] = useState(ENVIRONMENTS[3].url); // dev4 default
+    const [envUrl, setEnvUrl] = useState(() => {
+        setApiBaseUrl(ENVIRONMENTS[3].url);
+        return ENVIRONMENTS[3].url;
+    });
 
     const handleEnvChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const url = e.target.value;
